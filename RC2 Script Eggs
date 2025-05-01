@@ -1,0 +1,222 @@
+local FRAME_BG       = Color3.fromHex("#1E1E1E")
+local INNER_BG       = Color3.fromHex("#2A2A2A")
+local BORDER_COLOR   = Color3.fromHex("#000000")
+local TEXT_COLOR     = Color3.fromHex("#FFFFFF")
+
+
+local Players          = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local VIM               = game:GetService("VirtualInputManager")
+local plr              = Players.LocalPlayer
+local root             = plr:WaitForChild("PlayerGui")
+
+
+local function makeDraggable(frame, dragBar)
+    local dragging, dragInput, dragStart, startPos
+    dragBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+    dragBar.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            dragInput = input
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input == dragInput then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+end
+
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "EggFarmGUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = root
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 320, 0, 160)
+mainFrame.Position = UDim2.new(0.35,0,0.35,0)
+mainFrame.BackgroundColor3 = FRAME_BG
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = screenGui
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
+local stroke = Instance.new("UIStroke", mainFrame)
+stroke.Color = BORDER_COLOR
+stroke.Thickness = 2
+
+local dragBar = Instance.new("Frame", mainFrame)
+dragBar.Size = UDim2.new(1,0,0,40)
+dragBar.BackgroundTransparency = 1
+makeDraggable(mainFrame, dragBar)
+
+local title = Instance.new("TextLabel", mainFrame)
+title.Size = UDim2.new(1,0,0,30)
+title.Position = UDim2.new(0,0,0,5)
+title.BackgroundTransparency = 1
+title.Text = "EGG FARM SCRIPT"
+title.TextColor3 = TEXT_COLOR
+title.Font = Enum.Font.GothamBold
+title.TextSize = 20
+
+local subtitle = Instance.new("TextLabel", mainFrame)
+subtitle.Size = UDim2.new(1,0,0,18)
+subtitle.Position = UDim2.new(0,0,0,30)
+subtitle.BackgroundTransparency = 1
+subtitle.Text = "by: Babka Warrior"
+subtitle.TextColor3 = TEXT_COLOR
+subtitle.Font = Enum.Font.Gotham
+subtitle.TextSize = 14
+
+
+local btn = Instance.new("TextButton", mainFrame)
+btn.Size = UDim2.new(0.8, 0, 0, 40)
+btn.Position = UDim2.new(0.1, 0, 0, 80)
+btn.BackgroundColor3 = INNER_BG
+btn.BorderSizePixel = 0
+btn.Text = "START"
+btn.TextColor3 = TEXT_COLOR
+btn.Font = Enum.Font.GothamBold
+btn.TextSize = 18
+Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+local btnStroke = Instance.new("UIStroke", btn)
+btnStroke.Color = BORDER_COLOR
+btnStroke.Thickness = 2
+
+
+local timerLabel = Instance.new("TextLabel", mainFrame)
+timerLabel.Size = UDim2.new(0.8, 0, 0, 20)
+timerLabel.Position = UDim2.new(0.1,0,0,125)
+timerLabel.BackgroundTransparency = 1
+timerLabel.Text = "Farming Egg For: 00:00"
+timerLabel.TextColor3 = TEXT_COLOR
+timerLabel.Font = Enum.Font.Gotham
+timerLabel.TextSize = 14
+timerLabel.TextStrokeTransparency = 0.8
+
+
+local running = false
+local teleportCFrame
+local circlePart
+local originalProps = {}
+local startTime
+
+
+local function applyForceFieldToCharacter(isOn)
+    local char = plr.Character
+    if not char then return end
+
+    if isOn then
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                originalProps[part] = { part.Material, part.Color }
+                part.Material = Enum.Material.ForceField
+                part.Color = Color3.new(0,0,0)
+            end
+        end
+    else
+        for part, props in pairs(originalProps) do
+            if part and part.Parent then
+                part.Material = props[1]
+                part.Color = props[2]
+            end
+        end
+        originalProps = {}
+    end
+end
+
+
+spawn(function()
+    while true do
+        task.wait(1)
+        if running and startTime then
+            local elapsed = os.time() - startTime
+            local hrs = math.floor(elapsed/3600)
+            local mins = math.floor((elapsed % 3600)/60)
+            timerLabel.Text = string.format("Farming Egg For: %02d:%02d", hrs, mins)
+        end
+    end
+end)
+
+btn.MouseButton1Click:Connect(function()
+    running = not running
+    if running then
+        btn.Text = "STOP"
+        startTime = os.time()
+
+        local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            teleportCFrame = hrp.CFrame
+
+            circlePart = Instance.new("Part", workspace)
+            circlePart.Size = Vector3.new(6,1,6)
+            circlePart.CFrame = teleportCFrame * CFrame.Angles(math.rad(90),0,0)
+            circlePart.Anchored = true
+            circlePart.CanCollide = false
+            circlePart.Material = Enum.Material.ForceField
+            circlePart.Color = Color3.fromHex("#FFFFFF")
+        end
+
+        applyForceFieldToCharacter(true)
+
+        task.spawn(function()
+            while running do
+                task.wait(1)
+                if plr.Character and teleportCFrame then
+                    local hrp2 = plr.Character:FindFirstChild("HumanoidRootPart")
+                    if hrp2 then hrp2.CFrame = teleportCFrame end
+                end
+            end
+        end)
+
+        task.spawn(function()
+            while running do
+                task.wait(5)
+                VIM:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                VIM:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+            end
+        end)
+
+        task.spawn(function()
+            while running do
+                task.wait(15)
+                VIM:SendKeyEvent(true, Enum.KeyCode.One, false, game)
+                VIM:SendKeyEvent(false, Enum.KeyCode.One, false, game)
+                task.wait(0.1)
+                VIM:SendKeyEvent(true, Enum.KeyCode.Backspace, false, game)
+                VIM:SendKeyEvent(false, Enum.KeyCode.Backspace, false, game)
+            end
+        end)
+
+        task.spawn(function()
+            while running do
+                task.wait(30)
+                local humanoid = plr.Character and plr.Character:FindFirstChild("Humanoid")
+                if humanoid then
+                    humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                end
+            end
+        end)
+    else
+        btn.Text = "START"
+        timerLabel.Text = "Farming Egg For: 00:00"
+        startTime = nil
+
+        if circlePart then circlePart:Destroy() circlePart = nil end
+        teleportCFrame = nil
+        applyForceFieldToCharacter(false)
+    end
+end)
